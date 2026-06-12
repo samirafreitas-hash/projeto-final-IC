@@ -65,7 +65,7 @@ module bms_fsm (
         state_next      = Estado_atual;
         cell_index_next = cell_index;
 
-        if (OT_FLG || LK_FLG) begin
+        if (OT_FLG || LK_FLG || OV_FLG || UV_FLG) begin
             state_next = ST_FAULT;
         end else begin
             case (Estado_atual)
