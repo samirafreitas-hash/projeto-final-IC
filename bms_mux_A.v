@@ -1,10 +1,20 @@
+//Módulo MUX A: Seleciona qual dado vai para a ULA (tensão, corrente ou temperatura)
+
+//Um multiplexador (MUX) é um circuito digital que funciona como um seletor de dados.
+//Ele possui várias entradas de dados, algumas linhas de seleção e uma única saída. 
+
+//Recebe os valores adivindos do mod bms_regs_entrada e seleciona qual deles será enviado para a ULA, 
+//de acordo com o sinal de seleção mux_A_sel.
+
 module bms_mux_A (
     input wire [9:0] V1_reg,
     input wire [9:0] V2_reg,
     input wire [9:0] V3_reg,
     input wire [9:0] V4_reg,
+
     input wire [9:0] I_reg,
     input wire [9:0] T_reg,
+    
     input wire [2:0] mux_sel,
 
     output reg [9:0] dado_A

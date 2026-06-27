@@ -1,3 +1,7 @@
+//Módulo ULA: Unidade Lógica e Aritmética
+//Ela é responsável por executar operações matemáticas e lógicas sobre os dados.
+
+//Pega os dados do mux A e B e faz operações como comparação
 module bms_ula (
     input wire [9:0] dado_A,
     input wire [9:0] dado_B,

@@ -13,7 +13,7 @@ module bms_fsm (
     input wire [9:0] V3_reg,
     input wire [9:0] V4_reg,
 
-    output reg [7:0] Endereco_ROM,
+   // output reg [7:0] Endereco_ROM,
     output reg load_V,
     output reg load_I,
     output reg load_T,
@@ -38,10 +38,10 @@ module bms_fsm (
     localparam ST_CHECK_LK     = 3'b110;
     localparam ST_CALC_BAL     = 3'b111;
 
-    localparam ADD = 3'b000;
-    localparam SUB = 3'b001;
+    //localparam ADD = 3'b000;
+    //localparam SUB = 3'b001;
     localparam CMP = 3'b010;
-    localparam PAS = 3'b011;
+    //localparam PAS = 3'b011;
     localparam CLT = 3'b100;
 
     localparam BAL_DELTA = 10'd10;
@@ -65,7 +65,7 @@ module bms_fsm (
         state_next      = Estado_atual;
         cell_index_next = cell_index;
 
-        if (OT_FLG || LK_FLG) begin
+        if (OT_FLG || LK_FLG || OV_FLG || UV_FLG) begin
             state_next = ST_FAULT;
         end else begin
             case (Estado_atual)
@@ -131,7 +131,7 @@ module bms_fsm (
     end
 
     always @(*) begin
-        Endereco_ROM    = 8'h00;
+        //Endereco_ROM    = 8'h00;
         load_V          = 1'b0;
         load_I          = 1'b0;
         load_T          = 1'b0;
@@ -140,19 +140,19 @@ module bms_fsm (
         tipo_falha_sel  = 2'b00;
         mux_A_sel       = 3'b000;
         mux_B_sel       = 3'b000;
-        Opcode_ula      = PAS;
+        Opcode_ula      = CMP;
         bal_cmd         = 4'b0000;
 
         case (Estado_atual)
             ST_READ_SENSORS: begin
-                Endereco_ROM = 8'h01;
+              //  Endereco_ROM = 8'h01;
                 load_V = 1'b1;
                 load_I = 1'b1;
                 load_T = 1'b1;
             end
 
             ST_CHECK_OV: begin
-                Endereco_ROM    = {6'd0, cell_index};
+              //  Endereco_ROM    = {6'd0, cell_index};
                 mux_A_sel       = {1'b0, cell_index};
                 mux_B_sel       = 3'b000;
                 Opcode_ula      = CMP;

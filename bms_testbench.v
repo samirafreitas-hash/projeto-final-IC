@@ -60,6 +60,12 @@ module tb_bms;
         forever #5 sys_clk = ~sys_clk;
     end
 
+    // Gerar GTK Wave 
+    initial begin
+        $dumpfile("tb_bms.vcd");
+        $dumpvars(0, tb_bms);
+    end
+
     // --------------------------------------------------------
     // 4. Estímulos da Simulação
     // --------------------------------------------------------
