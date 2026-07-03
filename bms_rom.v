@@ -1,3 +1,8 @@
+// Módulo ROM: para armazenar os limites de operação do BMS (DADOS FIXOS)
+
+// ROM (Read-Only Memory) é uma memória de "somente leitura". 
+// Ela guarda informações permanentes que não são apagadas quando o dispositivo é desligado.
+
 // Modulo ROM/configuracao: armazena os limites de operacao do BMS.
 // Os valores possuem padrao inicial e podem ser atualizados via I2C.
 //
@@ -13,7 +18,7 @@ module bms_rom (
     input wire rst,
     input wire read_en,
     input wire cfg_wr_en,
-    input wire [7:0] cfg_addr,
+   // input wire [7:0] cfg_addr,
     input wire [9:0] cfg_data,
 
     output reg [9:0] lim_sobrecarga,

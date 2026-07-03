@@ -21,9 +21,9 @@ module bms_regs_entrada (
     input wire [9:0] T_dig,
     
     // Sinais de controle da FSM
-    input wire load_V,
-    input wire load_I,
-    input wire load_T,
+    input wire load_V, //permite carregar os registradores de tensão
+    input wire load_I, //permite carregar o registrador de corrente
+    input wire load_T, //permite carregar o registrador de temperatura
     
     // Saídas registradas
     output reg [9:0] V1_reg,
