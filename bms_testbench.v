@@ -31,6 +31,9 @@ module tb_bms;
     reg [9:0] V1_dig, V2_dig, V3_dig, V4_dig;
     reg [9:0] I_dig;
     reg [9:0] T_dig;
+    reg I2C_SCL;
+    reg i2c_sda_master_drive_low;
+    wire I2C_SDA;
 
     // Auxiliar: guarda o SOC antes de um trecho de carga/descarga
     reg [9:0] soc_antes;
@@ -42,6 +45,9 @@ module tb_bms;
     wire [9:0] SOC_DATA_OUT;
     wire [2:0] Estado_atual;
 
+    assign I2C_SDA = i2c_sda_master_drive_low ? 1'b0 : 1'bz;
+    pullup(I2C_SDA);
+
     // --------------------------------------------------------
     // 2. Instanciação do DUT
     // --------------------------------------------------------
@@ -51,6 +57,7 @@ module tb_bms;
         .V1_dig(V1_dig), .V2_dig(V2_dig),
         .V3_dig(V3_dig), .V4_dig(V4_dig),
         .I_dig(I_dig), .T_dig(T_dig),
+        .I2C_SCL(I2C_SCL), .I2C_SDA(I2C_SDA),
         .CHG_EN(CHG_EN), .DSCHG_EN(DSCHG_EN),
         .OV_FLG(OV_FLG), .UV_FLG(UV_FLG),
         .OT_FLG(OT_FLG), .LK_FLG(LK_FLG),
@@ -88,6 +95,71 @@ module tb_bms;
         end
     endtask
 
+     task i2c_delay;
+        begin
+            #20;
+        end
+    endtask
+
+    task i2c_start;
+        begin
+            i2c_sda_master_drive_low = 1'b0;
+            I2C_SCL = 1'b1;
+            i2c_delay;
+            i2c_sda_master_drive_low = 1'b1;
+            i2c_delay;
+            I2C_SCL = 1'b0;
+            i2c_delay;
+        end
+    endtask
+
+    task i2c_stop;
+        begin
+            i2c_sda_master_drive_low = 1'b1;
+            I2C_SCL = 1'b0;
+            i2c_delay;
+            I2C_SCL = 1'b1;
+            i2c_delay;
+            i2c_sda_master_drive_low = 1'b0;
+            i2c_delay;
+        end
+    endtask
+
+    task i2c_write_byte;
+        input [7:0] data;
+        integer i;
+        begin
+            for (i = 7; i >= 0; i = i - 1) begin
+                I2C_SCL = 1'b0;
+                i2c_sda_master_drive_low = ~data[i];
+                i2c_delay;
+                I2C_SCL = 1'b1;
+                i2c_delay;
+            end
+
+            I2C_SCL = 1'b0;
+            i2c_sda_master_drive_low = 1'b0;
+            i2c_delay;
+            I2C_SCL = 1'b1;
+            i2c_delay;
+            I2C_SCL = 1'b0;
+            i2c_delay;
+        end
+    endtask
+
+    task i2c_write_config;
+        input [7:0] reg_addr;
+        input [9:0] value;
+        begin
+            i2c_start;
+            i2c_write_byte(8'h84); // endereco 7'h42 + escrita
+            i2c_write_byte(reg_addr);
+            i2c_write_byte({6'd0, value[9:8]});
+            i2c_write_byte(value[7:0]);
+            i2c_stop;
+            #100;
+        end
+    endtask
     // --------------------------------------------------------
     // 4b. Helper: verifica relação numérica (para o SOC)
     //     modo 0 = espera valor MENOR que ref  (descarga)
@@ -173,6 +245,32 @@ module tb_bms;
         sys_rst = 1; #30; sys_rst = 0;
         $display("[INIT] Reset liberado. Aguardando FSM estabilizar...");
         #300;
+
+         // ====================================================
+        // CONFIGURACAO VIA I2C
+        //
+        // O usuario/microcontrolador IoT grava os limites na ROM
+        // configuravel antes da operacao normal do BMS.
+        // Mapa:
+        //   0x00 sobretensao, 0x01 subtensao, 0x02 corrente maxima,
+        //   0x03 corrente minima, 0x04 temperatura maxima, 0x05 capacidade
+        // ====================================================
+        $display("");
+        $display("--- CONFIGURACAO VIA I2C DOS LIMITES DA ROM ---");
+        i2c_write_config(8'h00, 10'd420);
+        i2c_write_config(8'h01, 10'd300);
+        i2c_write_config(8'h02, 10'd80);
+        i2c_write_config(8'h03, 10'd5);
+        i2c_write_config(8'h04, 10'd60);
+        i2c_write_config(8'h05, 10'd500);
+        $display("  Limites gravados via I2C: OV=420 UV=300 Imax=80 Imin=5 Tmax=60 Cap=500");
+        check("I2C gravou limite de sobretensao",    (dut.u_rom.lim_sobrecarga == 10'd420),    1'b1);
+        check("I2C gravou limite de subtensao",      (dut.u_rom.lim_sobredescarga == 10'd300), 1'b1);
+        check("I2C gravou corrente maxima",          (dut.u_rom.lim_corrente_max == 10'd80),   1'b1);
+        check("I2C gravou corrente minima",          (dut.u_rom.lim_corrente_min == 10'd5),    1'b1);
+        check("I2C gravou temperatura maxima",       (dut.u_rom.lim_temp == 10'd60),           1'b1);
+        check("I2C gravou capacidade nominal",       (dut.u_rom.capacidade_nom == 10'd500),    1'b1);
+
 
         // ====================================================
         // TESTE 1 — SOBRETENSÃO (OV_FLG)

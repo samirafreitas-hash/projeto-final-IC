@@ -21,6 +21,11 @@ module bms_top (
     input wire [9:0] I_dig,
     input wire [9:0] T_dig,
 
+    // Interface I2C para configuracao dos limites da ROM
+    input wire I2C_SCL,
+    inout wire I2C_SDA,
+
+
     // Saídas
 
     //Sinal de habilitação para carga e descarga
@@ -68,9 +73,15 @@ module bms_top (
     wire [9:0] lim_sobrecarga;
     wire [9:0] lim_sobredescarga;
     wire [9:0] lim_temp;
+    wire [9:0] lim_corrente_max;
+    wire [9:0] lim_corrente_min;
     wire [9:0] lim_corrente_fuga;
     wire [9:0] capacidade_nom;
     wire read_en = 1'b1;
+    wire i2c_cfg_wr_en;
+    wire [7:0] i2c_cfg_addr;
+    wire [9:0] i2c_cfg_data;
+
 
     wire cmp_true;
 
@@ -95,13 +106,28 @@ module bms_top (
     );
 
     //Módulo ROM: 
-    //para armazenar os limites de operação do BMS (DADOS FIXOS)
+    //para armazenar os limites de operação do BMS 
     bms_rom u_rom (
-        .clk(sys_clk),.read_en(read_en),
-       // .endereco_ROM(Endereco_ROM),
-        .lim_sobrecarga(lim_sobrecarga), .lim_sobredescarga(lim_sobredescarga),.lim_temp(lim_temp),
+        .clk(sys_clk),
+        .rst(sys_rst),
+        .read_en(read_en),
+        .cfg_wr_en(i2c_cfg_wr_en),
+        .cfg_addr(i2c_cfg_addr),
+        .cfg_data(i2c_cfg_data),
+        .lim_sobrecarga(lim_sobrecarga), .lim_sobredescarga(lim_sobredescarga),
+        .lim_corrente_max(lim_corrente_max), .lim_corrente_min(lim_corrente_min),
+        .lim_temp(lim_temp),
         .lim_corrente_fuga(lim_corrente_fuga),.capacidade_nom(capacidade_nom)
-       // .data_out(instrucao_dados)
+    );
+// modulo de comunicação I2C para configuração dos limites do BMS 
+     bms_i2c_slave_config u_i2c_cfg (
+        .sys_clk(sys_clk),
+        .sys_rst(sys_rst),
+        .i2c_scl(I2C_SCL),
+        .i2c_sda(I2C_SDA),
+        .cfg_wr_en(i2c_cfg_wr_en),
+        .cfg_addr(i2c_cfg_addr),
+        .cfg_data(i2c_cfg_data)
     );
 
     //Módulo Mutiplexador A:
