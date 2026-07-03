@@ -8,11 +8,6 @@ module bms_fsm (
     input wire OT_FLG,
     input wire LK_FLG,
 
-    input wire [9:0] V1_reg,
-    input wire [9:0] V2_reg,
-    input wire [9:0] V3_reg,
-    input wire [9:0] V4_reg,
-
    // output reg [7:0] Endereco_ROM,
     output reg load_V,
     output reg load_I,
@@ -25,7 +20,6 @@ module bms_fsm (
     output reg [2:0] mux_B_sel,
     output reg [2:0] Opcode_ula,
 
-    output reg [3:0] bal_cmd,
     output reg [2:0] Estado_atual
 );
 
@@ -43,13 +37,11 @@ module bms_fsm (
     localparam CMP = 3'b010;
     //localparam PAS = 3'b011;
     localparam CLT = 3'b100;
-
-    localparam BAL_DELTA = 10'd10;
+    localparam BAL = 3'b101; // pede pra ULA sinalizar "hora de verificar balanceamento"
 
     reg [2:0] state_next;
     reg [1:0] cell_index;
     reg [1:0] cell_index_next;
-    reg [9:0] v_min;
 
     always @(posedge sys_clk or posedge sys_rst) begin
         if (sys_rst) begin
@@ -119,18 +111,6 @@ module bms_fsm (
     end
 
     always @(*) begin
-        if ((V1_reg <= V2_reg) && (V1_reg <= V3_reg) && (V1_reg <= V4_reg)) begin
-            v_min = V1_reg;
-        end else if ((V2_reg <= V1_reg) && (V2_reg <= V3_reg) && (V2_reg <= V4_reg)) begin
-            v_min = V2_reg;
-        end else if ((V3_reg <= V1_reg) && (V3_reg <= V2_reg) && (V3_reg <= V4_reg)) begin
-            v_min = V3_reg;
-        end else begin
-            v_min = V4_reg;
-        end
-    end
-
-    always @(*) begin
         //Endereco_ROM    = 8'h00;
         load_V          = 1'b0;
         load_I          = 1'b0;
@@ -141,7 +121,6 @@ module bms_fsm (
         mux_A_sel       = 3'b000;
         mux_B_sel       = 3'b000;
         Opcode_ula      = CMP;
-        bal_cmd         = 4'b0000;
 
         case (Estado_atual)
             ST_READ_SENSORS: begin
@@ -186,15 +165,18 @@ module bms_fsm (
 
             ST_CALC_BAL: begin
                 sample_soc = 1'b1;
-
-                bal_cmd[0] = (V1_reg > (v_min + BAL_DELTA));
-                bal_cmd[1] = (V2_reg > (v_min + BAL_DELTA));
-                bal_cmd[2] = (V3_reg > (v_min + BAL_DELTA));
-                bal_cmd[3] = (V4_reg > (v_min + BAL_DELTA));
+                // Não calcula nada aqui: só pede pra ULA sinalizar
+                // que é o momento de verificar o balanceamento.
+                // O cálculo (v_min, comparação com BAL_DELTA) e a
+                // decisão de quais células balancear ficam dentro
+                // de bms_control_balanceamento.
+                Opcode_ula = BAL;
             end
 
             ST_FAULT: begin
-                bal_cmd = 4'b0000;
+                // Em falha não há nada a fazer aqui; o módulo de
+                // balanceamento mantém o último estado registrado
+                // (não recebe verifica_bal_flg = 1 nesse estado).
             end
         endcase
     end

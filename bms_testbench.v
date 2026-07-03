@@ -34,6 +34,7 @@ module tb_bms;
     wire CHG_EN, DSCHG_EN;
     wire OV_FLG, UV_FLG, OT_FLG, LK_FLG;
     wire [3:0] bal_cmd_out;
+    wire BAL_FLG;
     wire [9:0] SOC_DATA_OUT;
     wire [2:0] Estado_atual;
 
@@ -50,6 +51,7 @@ module tb_bms;
         .OV_FLG(OV_FLG), .UV_FLG(UV_FLG),
         .OT_FLG(OT_FLG), .LK_FLG(LK_FLG),
         .bal_cmd_out(bal_cmd_out),
+        .BAL_FLG(BAL_FLG),
         .SOC_DATA_OUT(SOC_DATA_OUT),
         .Estado_atual(Estado_atual)
     );
@@ -239,23 +241,19 @@ module tb_bms;
         limpa_e_aguarda;
 
         // ====================================================
-        // TESTE 5 — BALANCEAMENTO (bal_cmd_out)
+        // TESTE 5 — BALANCEAMENTO (bal_cmd_out / BAL_FLG), fms=111
         //
-        //   Lógica na FSM (ST_CALC_BAL = 3'b111):
-        //     bal_cmd[x] = (Vx_reg > v_min + BAL_DELTA)   BAL_DELTA = 10
-        //     v_min      = menor tensão entre as 4 células
+        //   Cálculo agora é feito dentro de bms_control_balanceamento:
+        //     bal_cmd_calc[x] = (Vx_reg > v_min + BAL_DELTA)   BAL_DELTA = 10
+        //     v_min           = menor tensão entre as 4 células
         //
-        //   PROBLEMA DE DESIGN IDENTIFICADO:
-        //     bal_cmd é COMBINACIONAL no always@(*) da FSM.
-        //     bms_control_balanceamento registra bal_cmd no posedge do clock.
-        //     Na borda que sai de ST_CALC_BAL, Estado_atual já virou ST_READ_SENSORS,
-        //     então o always@(*) recalcula bal_cmd=0 antes do registrador capturar.
-        //     Resultado: BAL_EN_x nunca sai de zero pelo caminho normal.
-        //
-        //   SOLUÇÃO NO TESTBENCH:
-        //     Capturamos bal_cmd DIRETAMENTE da FSM no meio do estado ST_CALC_BAL
-        //     (entre bordas de clock, quando o sinal combinacional está válido),
-        //     usando #1 após a borda de subida para ler após a propagação combinacional.
+        //   A ULA só sinaliza verifica_bal_flg = 1 enquanto a FSM está
+        //   em ST_CALC_BAL (via Opcode_ula = BAL). bms_control_balanceamento
+        //   registra o novo bal_cmd_calc no primeiro posedge em que
+        //   verifica_bal_flg estiver em 1 — ou seja, na borda em que a
+        //   FSM sai de ST_CALC_BAL. Por isso esperamos a FSM ENTRAR em
+        //   ST_CALC_BAL e depois aguardamos mais um ciclo de clock para
+        //   ler o resultado já registrado em BAL_EN_x / BAL_FLG.
         //
         //   Cenário:
         //     V1 = 380  (menor → v_min = 380, nao balanceia)
@@ -264,34 +262,50 @@ module tb_bms;
         //     V4 = 400  (400 > 390? SIM   → deve balancear)
         // ====================================================
         $display("");
-        $display("--- TESTE 5: BALANCEAMENTO (bal_cmd_out) ---");
+        $display("--- TESTE 5: BALANCEAMENTO (bal_cmd_out / BAL_FLG) ---");
         $display("  V1=380 (v_min), V2=395, V3=385, V4=400");
         $display("  Limiar = v_min + BAL_DELTA = 380 + 10 = 390");
-        $display("  Esperado: BAL_EN_1=0  BAL_EN_2=1  BAL_EN_3=0  BAL_EN_4=1");
-        $display("  NOTA: bug de design — bal_cmd combinacional zerado antes do");
-        $display("        registrador capturar. Verificamos bal_cmd direto da FSM.");
+        $display("  Esperado: BAL_EN_1=0  BAL_EN_2=1  BAL_EN_3=0  BAL_EN_4=1  BAL_FLG=1");
 
         V1_dig = 10'd380;
         V2_dig = 10'd395;
         V3_dig = 10'd385;
         V4_dig = 10'd400;
 
-        // Aguarda a FSM entrar em ST_CALC_BAL usando loop Verilog puro
-        // (compatível com Verilog-2001 / Xcelium sem flag SV)
+        // Aguarda a FSM passar por ST_READ_SENSORS (recarrega V1_reg..V4_reg
+        // com os novos valores de V_dig) e DEPOIS entrar em ST_CALC_BAL.
+        //
+        // IMPORTANTE: Estado_atual é atualizado dentro da FSM com atribuição
+        // não-bloqueante (<=) no mesmo posedge que este testbench espera.
+        // Por isso, depois de cada @(posedge sys_clk), aguardamos #1 antes
+        // de ler Estado_atual — garante que a atualização NBA já foi
+        // aplicada, independente da ordem de escalonamento do simulador
+        // (isso evita uma race condition que pode variar entre simuladores).
+        begin : wait_read_sensors
+            forever begin
+                @(posedge sys_clk);
+                #1;
+                if (Estado_atual == 3'b001) disable wait_read_sensors;
+            end
+        end
         begin : wait_calc_bal
             forever begin
                 @(posedge sys_clk);
+                #1;
                 if (Estado_atual == 3'b111) disable wait_calc_bal;
             end
         end
 
-        // Lê bal_cmd_out AGORA, no meio do estado ST_CALC_BAL,
-        // logo após a propagação combinacional (1ns de margem)
+        // bms_control_balanceamento registra o resultado na borda em que
+        // a FSM sai de ST_CALC_BAL: aguarda mais um ciclo de clock (+ #1
+        // pelo mesmo motivo acima, para ler o valor já registrado).
+        @(posedge sys_clk);
         #1;
         check("BAL_EN_1=0 (V1=380 e v_min, nao balanceia)", bal_cmd_out[0], 1'b0);
         check("BAL_EN_2=1 (V2=395 > 390, balanceia)",       bal_cmd_out[1], 1'b1);
         check("BAL_EN_3=0 (V3=385 < 390, nao balanceia)",   bal_cmd_out[2], 1'b0);
         check("BAL_EN_4=1 (V4=400 > 390, balanceia)",       bal_cmd_out[3], 1'b1);
+        check("BAL_FLG=1 (ao menos uma célula precisa balancear)", BAL_FLG, 1'b1);
         limpa_e_aguarda;
 
         $display("");
@@ -305,13 +319,12 @@ module tb_bms;
     // 7. Monitor contínuo
     // --------------------------------------------------------
     initial begin
-        $monitor("t=%0t | FSM=%b | V1=%0d V2=%0d V3=%0d V4=%0d | T=%0d I=%0d | OV=%b UV=%b OT=%b LK=%b | CHG=%b DSCHG=%b | BAL=%b",
+        $monitor("t=%0t | FSM=%b | V1=%0d V2=%0d V3=%0d V4=%0d | T=%0d I=%0d | OV=%b UV=%b OT=%b LK=%b | CHG=%b DSCHG=%b | BAL_FLG=%b BAL=%b",
                  $time, Estado_atual,
                  V1_dig, V2_dig, V3_dig, V4_dig,
                  T_dig, I_dig,
                  OV_FLG, UV_FLG, OT_FLG, LK_FLG,
-                 CHG_EN, DSCHG_EN,
-                 bal_cmd_out);
+                 CHG_EN, DSCHG_EN, BAL_FLG, bal_cmd_out,);
     end
 
 endmodule

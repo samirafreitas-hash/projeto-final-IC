@@ -36,6 +36,10 @@ module bms_top (
     // Comando de balanceamento para cada célula (4 bits, um para cada célula)
     output wire [3:0] bal_cmd_out,
 
+    // Flag de informação (fora das flags de falha): indica se alguma
+    // célula precisa ser balanceada no momento
+    output wire BAL_FLG,
+
     // Valor do SOC em formato digital (10 bits)
     output wire [9:0] SOC_DATA_OUT, 
 
@@ -54,7 +58,7 @@ module bms_top (
     wire [2:0] mux_B_sel;
     wire [2:0] Opcode_ula;
    // wire [7:0] Endereco_ROM;
-    wire [3:0] bal_cmd;
+    wire verify_bal_flg;
 
     wire [9:0] SOC_atual;
     wire [9:0] dado_A, dado_B;
@@ -137,7 +141,9 @@ module bms_top (
         //Resultado da saída
         .resultado_ula(resultado_ula),
         //Diz se a comparação entre os dois dados é verdadeira ou falsa (A > B ou A < B)
-        .cmp_true(cmp_true)
+        .cmp_true(cmp_true),
+        //Diz se é o momento de verificar o balanceamento das células
+        .verify_bal_flg(verify_bal_flg)
     );
 
     //Módulo de registro de status do BMS
@@ -183,11 +189,18 @@ module bms_top (
     bms_control_balanceamento u_ctrl_bal (
         .sys_clk(sys_clk),
         .sys_rst(sys_rst),
-        .bal_cmd(bal_cmd),
+        //Tensões das 4 células, usadas para o cálculo interno do balanceamento
+        .V1_reg(V1_reg),
+        .V2_reg(V2_reg),
+        .V3_reg(V3_reg),
+        .V4_reg(V4_reg),
+        //Vindo da ULA: indica o momento de verificar o balanceamento
+        .verifica_bal_flg(verify_bal_flg),
         .BAL_EN_1(BAL_EN_1),
         .BAL_EN_2(BAL_EN_2),
         .BAL_EN_3(BAL_EN_3),
-        .BAL_EN_4(BAL_EN_4)
+        .BAL_EN_4(BAL_EN_4),
+        .BAL_FLG(BAL_FLG) //flag que indica se precisa balancear as tensões
     );
 
     bms_fsm u_fsm (
@@ -198,10 +211,6 @@ module bms_top (
         .UV_FLG(UV_FLG),
         .OT_FLG(OT_FLG),
         .LK_FLG(LK_FLG),
-        .V1_reg(V1_reg),
-        .V2_reg(V2_reg),
-        .V3_reg(V3_reg),
-        .V4_reg(V4_reg),
         //.Endereco_ROM(Endereco_ROM),
         .load_V(load_V),
         .load_I(load_I),
@@ -212,7 +221,6 @@ module bms_top (
         .mux_A_sel(mux_A_sel),
         .mux_B_sel(mux_B_sel),
         .Opcode_ula(Opcode_ula),
-        .bal_cmd(bal_cmd),
         .Estado_atual(Estado_atual)
     );
 endmodule
