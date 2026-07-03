@@ -30,7 +30,7 @@ module bms_fsm (
     localparam ST_CHECK_OT     = 3'b100;
     localparam ST_FAULT        = 3'b101;
     localparam ST_CHECK_LK     = 3'b110;
-    localparam ST_CALC_BAL     = 3'b111;
+    localparam ST_CALC_BAL_SOC    = 3'b111;
 
     //localparam ADD = 3'b000;
     //localparam SUB = 3'b001;
@@ -92,10 +92,10 @@ module bms_fsm (
                 end
 
                 ST_CHECK_LK: begin
-                    state_next = ST_CALC_BAL;
+                    state_next = ST_CALC_BAL_SOC;
                 end
 
-                ST_CALC_BAL: begin
+                ST_CALC_BAL_SOC: begin
                     state_next = ST_READ_SENSORS;
                 end
 
@@ -163,13 +163,15 @@ module bms_fsm (
                 tipo_falha_sel  = 2'b11;
             end
 
-            ST_CALC_BAL: begin
+            ST_CALC_BAL_SOC: begin
+                // Este estado faz DUAS coisas:
+                //  1) Amostra o SOC (sample_soc = 1) → bms_soc_coulomb
+                //     atualiza a carga com base na corrente e direção.
+                //  2) Pede pra ULA sinalizar (Opcode_ula = BAL) que é o
+                //     momento de verificar o balanceamento. O cálculo
+                //     (v_min, comparação com BAL_DELTA, decisão de quais
+                //     células balancear) fica em bms_control_balanceamento.
                 sample_soc = 1'b1;
-                // Não calcula nada aqui: só pede pra ULA sinalizar
-                // que é o momento de verificar o balanceamento.
-                // O cálculo (v_min, comparação com BAL_DELTA) e a
-                // decisão de quais células balancear ficam dentro
-                // de bms_control_balanceamento.
                 Opcode_ula = BAL;
             end
 

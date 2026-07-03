@@ -21,7 +21,7 @@ module bms_control_balanceamento (
     input wire [9:0] V4_reg,
 
     // Vindo da ULA: indica que é o momento de verificar/recalcular
-    // o balanceamento (pulsado pela FSM durante o estado ST_CALC_BAL)
+    // o balanceamento (pulsado pela FSM durante o estado ST_CALC_BAL_SOC)
     input wire verifica_bal_flg,
 
     // Aciona diretamente as chaves externas dos resistores de desvio
