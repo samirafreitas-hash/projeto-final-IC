@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 module tb_bms_reativo;
 
     // ============================================================
@@ -51,6 +53,13 @@ module tb_bms_reativo;
 
     // Auxiliar: guarda o SOC antes de um trecho de carga/descarga
     reg [9:0] soc_antes;
+
+    // Marcador de FASE do teste (so para visualizacao): o testbench escreve
+    // aqui o numero do teste em andamento. Nao altera o comportamento do BMS;
+    // e apenas dumpado no VCD para o script Python desenhar as bandas das
+    // fases. Mapa: 0=init 1=I2C 2=T1_OV 3=T2_UV 4=T3_OT 5=T4_LK
+    //             6=T5_balanceamento 7=T6_SOC 8=T7_reativo 9=fim
+    integer fase;
 
     // Sinais de "mundo externo" controlados pelo testbench para o modelo
     // de bateria
@@ -312,6 +321,7 @@ module tb_bms_reativo;
         $display("========================================");
 
         // Inicialização: entradas seguras + reset inicial
+        fase            = 0;
         CHG_PWR_GD      = 1;
         charger_present = 1'b0;
         load_present    = 1'b0;
@@ -339,6 +349,7 @@ module tb_bms_reativo;
         // ====================================================
         $display("");
         $display("--- CONFIGURACAO VIA I2C DOS LIMITES DA ROM ---");
+        fase = 1;
         i2c_write_config(8'h00, 10'd420);
         i2c_write_config(8'h01, 10'd300);
         i2c_write_config(8'h02, 10'd80);
@@ -369,6 +380,7 @@ module tb_bms_reativo;
         $display("");
         $display("--- TESTE 1: SOBRETENSAO (OV_FLG) — limite = 420 ---");
 
+        fase = 2;
         $display("  [1a] V1=430 (demais=380)");
         preset_bateria(10'd430, 10'd380, 10'd380, 10'd380, 10'd50, 10'd35, 1'b1);
         #300;
@@ -406,6 +418,7 @@ module tb_bms_reativo;
         $display("");
         $display("--- TESTE 2: SUBTENSAO (UV_FLG) — limite = 300 ---");
 
+        fase = 3;
         $display("  [2a] V1=250 (demais=380)");
         preset_bateria(10'd250, 10'd380, 10'd380, 10'd380, 10'd50, 10'd35, 1'b1);
         #300;
@@ -442,6 +455,7 @@ module tb_bms_reativo;
         // ====================================================
         $display("");
         $display("--- TESTE 3: SOBRETEMPERATURA (OT_FLG) — limite = 60 ---");
+        fase = 4;
         $display("  T=75");
         preset_bateria(10'd380, 10'd380, 10'd380, 10'd380, 10'd50, 10'd75, 1'b1);
         #300;
@@ -458,6 +472,7 @@ module tb_bms_reativo;
         // ====================================================
         $display("");
         $display("--- TESTE 4: SOBRECORRENTE (LK_FLG) — limite = 80 ---");
+        fase = 5;
         $display("  I=100");
         preset_bateria(10'd380, 10'd380, 10'd380, 10'd380, 10'd100, 10'd35, 1'b1);
         #300;
@@ -488,6 +503,7 @@ module tb_bms_reativo;
         // ====================================================
         $display("");
         $display("--- TESTE 5: BALANCEAMENTO (bal_cmd_out / BAL_FLG) ---");
+        fase = 6;
         $display("  V1=380 (v_min), V2=395, V3=385, V4=400");
         $display("  Limiar = v_min + BAL_DELTA = 380 + 10 = 390");
         $display("  Esperado: BAL_EN_1=0  BAL_EN_2=1  BAL_EN_3=0  BAL_EN_4=1  BAL_FLG=1");
@@ -552,6 +568,7 @@ module tb_bms_reativo;
         $display("");
         $display("--- TESTE 6: SOC (DESCARGA e CARGA) ---");
 
+        fase = 7;
         // ---- 6a. DESCARGA ----
         // Reset limpo → SOC volta a 1000 e a bateria volta ao ponto de
         // fabrica; em seguida impomos entradas seguras e I_DIR=0.
@@ -595,6 +612,7 @@ module tb_bms_reativo;
         $display("");
         $display("--- TESTE 7: OPERACAO REATIVA EM MALHA FECHADA (sem preset) ---");
 
+        fase = 8;
         sys_rst = 1; #30; sys_rst = 0;
         CHG_PWR_GD = 1'b1;
 
@@ -637,6 +655,7 @@ module tb_bms_reativo;
         load_present    = 1'b0;
         limpa_e_aguarda;
 
+        fase = 9;
         $display("");
         $display("========================================");
         $display("         Simulacao concluida.");
